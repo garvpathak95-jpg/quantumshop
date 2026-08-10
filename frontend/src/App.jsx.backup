@@ -1,0 +1,484 @@
+import { useEffect, useState } from "react";
+import "./styles.css";
+
+const API = {
+  product: "http://localhost:8000",
+  cart: "http://localhost:8001",
+  auth: "http://localhost:8002",
+  payment: "http://localhost:8003",
+};
+
+const USER_ID = 1;
+
+function App() {
+  const [products, setProducts] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // -------------------------
+  // LOAD PRODUCTS
+  // -------------------------
+  const loadProducts = async () => {
+    try {
+      const response = await fetch(`${API.product}/products`);
+
+      if (!response.ok) {
+        throw new Error("Products unavailable");
+      }
+
+      const data = await response.json();
+
+      setProducts(Array.isArray(data) ? data : data.products || []);
+    } catch (error) {
+      console.error(error);
+      setMessage("Product service unavailable");
+    }
+  };
+
+  // -------------------------
+  // LOAD CART
+  // -------------------------
+  const loadCart = async () => {
+    try {
+      const response = await fetch(`${API.cart}/cart/${USER_ID}`);
+
+      if (!response.ok) {
+        throw new Error("Cart unavailable");
+      }
+
+      const data = await response.json();
+
+      setCart(data.items || []);
+    } catch (error) {
+      console.error(error);
+      setMessage("Cart service unavailable");
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+    loadCart();
+  }, []);
+
+  // -------------------------
+  // REGISTER
+  // -------------------------
+  const register = async () => {
+    if (!username || !password) {
+      setMessage("Username and password required");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(`${API.auth}/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.detail || "Registration failed");
+        return;
+      }
+
+      setMessage("Registration successful. Now login.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Auth service unavailable");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -------------------------
+  // LOGIN
+  // -------------------------
+  const login = async () => {
+    if (!username || !password) {
+      setMessage("Username and password required");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(`${API.auth}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.detail || "Login failed");
+        return;
+      }
+
+      setLoggedIn(true);
+      setMessage(`Login successful. Welcome ${data.username}!`);
+
+      await loadCart();
+    } catch (error) {
+      console.error(error);
+      setMessage("Auth service unavailable");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -------------------------
+  // ADD TO CART
+  // -------------------------
+  const addToCart = async (productId) => {
+    try {
+      const response = await fetch(
+        `${API.cart}/cart?user_id=${USER_ID}&product_id=${productId}&quantity=1`,
+        {
+          method: "POST",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.detail || "Could not add to cart");
+        return;
+      }
+
+      setMessage("Product added to cart");
+
+      await loadCart();
+    } catch (error) {
+      console.error(error);
+      setMessage("Cart service unavailable");
+    }
+  };
+
+  // -------------------------
+  // REMOVE FROM CART
+  // -------------------------
+  const removeFromCart = async (productId) => {
+    try {
+      const response = await fetch(
+        `${API.cart}/cart/${USER_ID}/${productId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.detail || "Could not remove product");
+        return;
+      }
+
+      setMessage("Product removed from cart");
+
+      await loadCart();
+    } catch (error) {
+      console.error(error);
+      setMessage("Cart service unavailable");
+    }
+  };
+
+  // -------------------------
+  // CART TOTAL
+  // -------------------------
+  const cartTotal = cart.reduce((total, item) => {
+    const product = products.find(
+      (p) => Number(p.id) === Number(item.product_id)
+    );
+
+    const price = Number(product?.price || 0);
+    const quantity = Number(item.quantity || 0);
+
+    return total + price * quantity;
+  }, 0);
+
+  // -------------------------
+  // PAYMENT
+  // -------------------------
+  const makePayment = async () => {
+    setMessage("Processing payment...");
+
+    if (cart.length === 0) {
+      setMessage("Cart is empty");
+      return;
+    }
+
+    if (!cartTotal || cartTotal <= 0) {
+      setMessage("Invalid cart total");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(`${API.payment}/payment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: USER_ID,
+          amount: cartTotal,
+          currency: "INR",
+        }),
+      });
+
+      const data = await response.json();
+
+      console.log("PAYMENT RESPONSE:", data);
+
+      if (!response.ok) {
+        setMessage(data.detail || "Payment failed");
+        return;
+      }
+
+      setMessage(
+        `Payment successful! Payment ID: ${
+          data.payment_id || "Generated"
+        }`
+      );
+    } catch (error) {
+      console.error("PAYMENT ERROR:", error);
+      setMessage("Payment service unavailable");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="app">
+
+      {/* HEADER */}
+      <header className="header">
+        <div>
+          <h1>QUANTUMSHOP</h1>
+          <p>Smart Shopping Experience</p>
+        </div>
+
+        <div className="header-right">
+          🛒 Cart: {cart.length}
+        </div>
+      </header>
+
+      {/* MESSAGE */}
+      {message && (
+        <div className="message">
+          {message}
+        </div>
+      )}
+
+      <main>
+
+        {/* ACCOUNT */}
+        <section className="auth-section">
+          <h2>Account</h2>
+
+          {!loggedIn ? (
+            <>
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) =>
+                  setUsername(e.target.value)
+                }
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
+              />
+
+              <div>
+                <button
+                  onClick={register}
+                  disabled={loading}
+                >
+                  Register
+                </button>
+
+                <button
+                  onClick={login}
+                  disabled={loading}
+                >
+                  Login
+                </button>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="success">
+                ✅ Logged in as {username}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* PRODUCTS */}
+        <section>
+          <h2>Products</h2>
+
+          {products.length === 0 ? (
+            <p>No products available</p>
+          ) : (
+            <div className="products">
+
+              {products.map((product) => (
+                <div
+                  className="product-card"
+                  key={product.id}
+                >
+                  <div className="emoji">
+                    🛍️
+                  </div>
+
+                  <h3>
+                    {product.name ||
+                      `Product ${product.id}`}
+                  </h3>
+
+                  <p>
+                    {product.description ||
+                      "Premium quality product"}
+                  </p>
+
+                  <h3>
+                    ₹
+                    {Number(
+                      product.price || 0
+                    ).toLocaleString("en-IN")}
+                  </h3>
+
+                  <button
+                    onClick={() =>
+                      addToCart(product.id)
+                    }
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              ))}
+
+            </div>
+          )}
+        </section>
+
+        {/* CART */}
+        <section className="cart-section">
+
+          <div className="cart-header">
+            <h2>Your Cart</h2>
+
+            <button onClick={loadCart}>
+              🔄 Refresh
+            </button>
+          </div>
+
+          {cart.length === 0 ? (
+            <p>Your cart is empty.</p>
+          ) : (
+            <>
+              {cart.map((item, index) => {
+
+                const product = products.find(
+                  (p) =>
+                    Number(p.id) ===
+                    Number(item.product_id)
+                );
+
+                const price = Number(
+                  product?.price || 0
+                );
+
+                return (
+                  <div
+                    className="cart-item"
+                    key={`${item.product_id}-${index}`}
+                  >
+                    <div>
+                      <strong>
+                        {product?.name ||
+                          `Product ${item.product_id}`}
+                      </strong>
+
+                      <div>
+                        Quantity: {item.quantity}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span>
+                        ₹
+                        {(
+                          price *
+                          Number(item.quantity || 0)
+                        ).toLocaleString("en-IN")}
+                      </span>
+
+                      <button
+                        onClick={() =>
+                          removeFromCart(
+                            item.product_id
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <h2>
+                Total: ₹
+                {cartTotal.toLocaleString("en-IN")}
+              </h2>
+
+              <button
+                className="payment-button"
+                onClick={makePayment}
+                disabled={loading}
+              >
+                💳{" "}
+                {loading
+                  ? "Processing..."
+                  : "Pay Now"}
+              </button>
+            </>
+          )}
+
+        </section>
+
+      </main>
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,105 @@
+services:
+
+  postgres:
+    image: postgres:17
+    container_name: quantumshop-postgres
+
+    environment:
+      POSTGRES_DB: quantumshop
+      POSTGRES_USER: quantumuser
+      POSTGRES_PASSWORD: "QuantumDB@123"
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantumuser -d quantumshop"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    restart: unless-stopped
+
+
+  product-service:
+    build:
+      context: ./product-service
+
+    container_name: quantumshop-product
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      DATABASE_URL: "postgresql+psycopg://quantumuser:QuantumDB%40123@postgres:5432/quantumshop"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+  cart-service:
+    build:
+      context: ./cart-service
+
+    container_name: quantumshop-cart
+
+    ports:
+      - "8001:8001"
+
+    environment:
+      DATABASE_URL: "postgresql+psycopg://quantumuser:QuantumDB%40123@postgres:5432/quantumshop"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+  auth-service:
+    build:
+      context: ./auth-service
+
+    container_name: quantumshop-auth
+
+    ports:
+      - "8002:8002"
+
+    environment:
+      DATABASE_URL: "postgresql+psycopg://quantumuser:QuantumDB%40123@postgres:5432/quantumshop"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+  payment-service:
+    build:
+      context: ./payment-service
+
+    container_name: quantumshop-payment
+
+    ports:
+      - "8003:8003"
+
+    environment:
+      DATABASE_URL: "postgresql+psycopg://quantumuser:QuantumDB%40123@postgres:5432/quantumshop"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:

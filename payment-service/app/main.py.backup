@@ -1,0 +1,75 @@
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+from sqlalchemy import create_engine, text
+import uuid
+
+app = FastAPI(title="QuantumShop Payment Service")
+
+DATABASE_URL = "postgresql+psycopg://quantumuser:QuantumDB%40123@localhost:5432/quantumshop"
+
+engine = create_engine(DATABASE_URL)
+
+
+class PaymentRequest(BaseModel):
+    user_id: int
+    amount: float
+    currency: str = "INR"
+
+
+@app.get("/")
+def root():
+    return {
+        "message": "QuantumShop Payment Service is running"
+    }
+
+
+@app.get("/health")
+def health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+
+        return {
+            "status": "healthy",
+            "database": "connected"
+        }
+
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }
+
+
+@app.post("/payment")
+def make_payment(payment: PaymentRequest):
+
+    payment_id = str(uuid.uuid4())
+
+    with engine.begin() as connection:
+
+        connection.execute(
+            text("""
+                INSERT INTO payments
+                (payment_id, user_id, amount, currency, status)
+                VALUES
+                (:payment_id, :user_id, :amount, :currency, :status)
+            """),
+            {
+                "payment_id": payment_id,
+                "user_id": payment.user_id,
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "status": "SUCCESS"
+            }
+        )
+
+    return {
+        "payment_id": payment_id,
+        "user_id": payment.user_id,
+        "amount": payment.amount,
+        "currency": payment.currency,
+        "status": "SUCCESS"
+    }
