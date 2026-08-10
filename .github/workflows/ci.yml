@@ -45,3 +45,48 @@ jobs:
 
       - name: Build Frontend Image
         run: docker build -t quantumshop-frontend ./frontend
+
+      - name: Scan Product Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: quantumshop-product
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Scan Cart Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: quantumshop-cart
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Scan Auth Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: quantumshop-auth
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Scan Payment Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: quantumshop-payment
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Scan Frontend Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: quantumshop-frontend
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
